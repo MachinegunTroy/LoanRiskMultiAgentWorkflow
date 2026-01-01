@@ -45,7 +45,7 @@ def load_data():
 llm = load_model()
 df_c, df_a, df_p = load_data()
 
-# --- 4. AGENT SYSTEM CLASS (The Logic You Verified) ---
+# --- 4. AGENT SYSTEM CLASS ---
 class LoanMultiAgentSystem:
     def __init__(self, llm, df_c, df_a, df_p):
         self.llm, self.df_c, self.df_a, self.df_p = llm, df_c, df_a, df_p
@@ -91,7 +91,6 @@ class LoanMultiAgentSystem:
 
     def draft_email(self, profile, decision, guidance, risk, rate):
         # AGENT 3: COMMUNICATOR (AI)
-        # Using the prompt that successfully prevented loops
         prompt = ChatPromptTemplate.from_template(
             """Write a short email to {name}. 
             State: "Your loan is {decision}."
@@ -128,12 +127,14 @@ if df_c is not None:
             is_non_sg = profile['Nationality'] == "Non-Singaporean"
             has_pr = str(profile['PR Status']).lower() == "true"
             
+            # --- SPECIFIC UPDATE FOR ANDY / REJECTION REASON ---
             if is_non_sg and not has_pr:
                 decision = "REJECTED"
-                guidance = "Permanent Residency is required"
+                # Updated guidance to be very explicit
+                guidance = "policy restricts loans to Non-Singaporeans without Permanent Residency (PR) status"
             else:
                 decision = "APPROVED"
-                guidance = "you meet our eligibility criteria"
+                guidance = "you meet our credit eligibility criteria"
                 
             st.write("📧 Generative AI: Drafting decision email...")
             email = system.draft_email(profile, decision, guidance, risk, rate)

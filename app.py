@@ -6,13 +6,14 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # --- 1. UI CONFIGURATION ---
-st.set_page_config(page_title="Loan Risk AI", page_icon="🏦", layout="wide")
+st.set_page_config(page_title="GenAI Loan System", page_icon="🏦", layout="wide")
 st.title("🏦 GenAI Loan Risk Assessment System")
 st.markdown("### Powered by Hybrid-Agent Architecture (Flan-T5 + Logic Guardrails)")
 
 # --- 2. CACHED MODEL LOADING (Run Once) ---
 @st.cache_resource(show_spinner="Downloading AI Brain (Flan-T5)...")
 def load_model():
+    # We use the CPU-friendly Flan-T5-Base model
     model_id = "google/flan-t5-base"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
@@ -22,7 +23,7 @@ def load_model():
         model=model, 
         tokenizer=tokenizer, 
         max_length=256,
-        repetition_penalty=1.2, 
+        repetition_penalty=1.2, # Prevents looping
         do_sample=True,
         temperature=0.3
     )
@@ -32,7 +33,7 @@ def load_model():
 @st.cache_data
 def load_data():
     try:
-        # Looking for data in the 'data/' folder as per your repo structure
+        # Load CSVs from the 'data/' folder in your GitHub repo
         df_c = pd.read_csv('data/credit.csv', dtype=str)
         df_a = pd.read_csv('data/account.csv', dtype=str)
         df_p = pd.read_csv('data/pr.csv', dtype=str)
@@ -44,12 +45,12 @@ def load_data():
 llm = load_model()
 df_c, df_a, df_p = load_data()
 
-# --- 4. AGENT SYSTEM CLASS ---
+# --- 4. AGENT SYSTEM CLASS (The Logic You Verified) ---
 class LoanMultiAgentSystem:
     def __init__(self, llm, df_c, df_a, df_p):
         self.llm, self.df_c, self.df_a, self.df_p = llm, df_c, df_a, df_p
 
-    def run_assessment(self, customer_id):
+    def retrieve_data(self, customer_id):
         # AGENT 1: DATA RETRIEVAL
         cred = self.df_c[self.df_c['ID'] == str(customer_id)]
         acct = self.df_a[self.df_a['ID'] == str(customer_id)]
@@ -68,7 +69,7 @@ class LoanMultiAgentSystem:
         return profile
 
     def analyze_risk(self, profile):
-        # AGENT 2: POLICY EXPERT (Hybrid Logic)
+        # AGENT 2: POLICY EXPERT (Agentic Tool Use)
         score = profile['Credit Score']
         status = profile['Account Status'].lower()
         
@@ -90,10 +91,12 @@ class LoanMultiAgentSystem:
 
     def draft_email(self, profile, decision, guidance, risk, rate):
         # AGENT 3: COMMUNICATOR (AI)
+        # Using the prompt that successfully prevented loops
         prompt = ChatPromptTemplate.from_template(
-            """You are a polite bank officer. Write a 2-sentence email to {name}. 
-            State that their loan is {decision} because {guidance}. 
-            Mention Risk Level: {risk} and Rate: {rate}."""
+            """Write a short email to {name}. 
+            State: "Your loan is {decision}."
+            Reason: {guidance}.
+            Metrics: Risk is {risk}, Rate is {rate}."""
         )
         chain = prompt | self.llm | StrOutputParser()
         return chain.invoke({
@@ -116,12 +119,12 @@ if df_c is not None:
         # DISPLAY PROGRESS
         with st.status("🤖 AI Agents at work...", expanded=True) as status:
             st.write("📂 Agent 1: Retrieving financial records...")
-            profile = system.run_assessment(selected_id)
+            profile = system.retrieve_data(selected_id)
             
             st.write("⚖️ Agent 2: Analyzing risk policies & calculating rates...")
             risk, rate = system.analyze_risk(profile)
             
-            st.write("🛡️ Agent 3: verifying regulatory compliance...")
+            st.write("🛡️ Agent 3: Verifying regulatory compliance...")
             is_non_sg = profile['Nationality'] == "Non-Singaporean"
             has_pr = str(profile['PR Status']).lower() == "true"
             
@@ -139,7 +142,9 @@ if df_c is not None:
 
         # DISPLAY RESULTS
         st.divider()
-        st.subheader(f"Decision: {decision}")
+        # Color code the decision
+        color = "green" if decision == "APPROVED" else "red"
+        st.markdown(f"## Decision: :{color}[{decision}]")
         
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Credit Score", profile['Credit Score'])
@@ -150,4 +155,4 @@ if df_c is not None:
         st.info(f"**Drafted Email:**\n\n{email}")
 
 else:
-    st.error("❌ Data files not found! Please check your 'data/' folder in GitHub.")
+    st.error("❌ Data files not found! Please ensure 'data/credit.csv' exists in your GitHub repo.")

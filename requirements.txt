@@ -1,0 +1,7 @@
+streamlit
+pandas
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+langchain
+langchain-huggingface
+langchain-community
